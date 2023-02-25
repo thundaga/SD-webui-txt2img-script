@@ -2,7 +2,7 @@
 
 This script is meant for the stable diffusion webui by automatic1111 -> https://github.com/AUTOMATIC1111
 
-Put the script `process_png_metadata.py` in the "stable-diffusion-webui\scripts folder then reload the webui and Simply drag 
+Put the script `process_png_metadata.py` in the `stable-diffusion-webui\scripts` folder then reload the webui and Simply drag 
 and drop or upload image files to modify a prompt, override default settings to modify images again.
 
 This file is specifically meant for a batch process of image files with metadata applicable to the txt2img section
@@ -17,6 +17,7 @@ overall features include:
 ![alt text](https://github.com/thundaga/StableDiffusionScripts/blob/main/screenshot.PNG?raw=true)
 
 source references this discussion -> https://github.com/AUTOMATIC1111/stable-diffusion-webui/discussions/4938
+
 made this script through feature request issue #7462 -> https://github.com/AUTOMATIC1111/stable-diffusion-webui/issues/7462
 
 
