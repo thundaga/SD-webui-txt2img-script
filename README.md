@@ -14,8 +14,10 @@ overall features include:
   - override default generation settings with image metadata
 
 script interface
-![](screenshot.png)
+![alt text](https://github.com/thundaga/StableDiffusionScripts/blob/main/screenshot.PNG?raw=true)
 
 source references this discussion -> https://github.com/AUTOMATIC1111/stable-diffusion-webui/discussions/4938
 made this script through feature request issue #7462 -> https://github.com/AUTOMATIC1111/stable-diffusion-webui/issues/7462
+
+
 
