@@ -13,7 +13,7 @@ overall features include:
   - add/delete tags from a positive prompt
   - override default generation settings with image metadata
 
-script interface
+### script interface
 ![alt text](https://github.com/thundaga/StableDiffusionScripts/blob/main/screenshot.PNG?raw=true)
 
 source references this discussion -> https://github.com/AUTOMATIC1111/stable-diffusion-webui/discussions/4938

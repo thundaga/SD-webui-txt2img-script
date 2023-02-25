@@ -9,6 +9,8 @@ from modules.shared import state
 from modules.generation_parameters_copypaste import parse_generation_parameters
 from modules.extras import run_pnginfo
 
+# github repo -> https://github.com/thundaga/SD-webui-txt2img-script
+
 class Script(scripts.Script): 
 
     # title of script on dropdown menu
