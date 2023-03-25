@@ -45,7 +45,7 @@ class Script(scripts.Script):
                 width_height = gr.Checkbox(False, label="Assign Width and Height")
                 denoising_strength = gr.Checkbox(False, label="Assign Denoising strength")
 
-                info = gr.HTML("<p style=\"margin-bottom:0.75em\">Optional tags to remove or add in front/end of a positive prompt on all images</p>")
+                gr.HTML("<p style=\"margin-bottom:0.75em\">Optional tags to remove or add in front/end of a positive prompt on all images</p>")
                 front_tags = gr.Textbox(label="Tags to add at the front")
                 back_tags = gr.Textbox(label="Tags to add at the end")
                 remove_tags = gr.Textbox(label="Tags to remove")
@@ -57,7 +57,7 @@ class Script(scripts.Script):
 
         image_batch = []
         for filepath in files:
-            image_batch.append(Image.open(filepath))
+            image_batch.append(Image.open(filepath.name))
        
         image_count = len(image_batch)
         state.job_count = image_count
