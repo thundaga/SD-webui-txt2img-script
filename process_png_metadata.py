@@ -146,8 +146,8 @@ class Script(scripts.Script):
                 p.sampler_name = parsed_text['Sampler']
             if options.steps and 'Steps' in parsed_text:
                 p.steps = int(parsed_text['Steps'])
-            if options.cfg_scale and 'Seed' in parsed_text:
-                p.cfg_scale = int(parsed_text['CFG scale'])                        
+            if options.cfg_scale and 'CFG scale' in parsed_text:
+                p.cfg_scale = float(parsed_text['CFG scale'])                        
             if options.width_height and 'Size-1' in parsed_text:
                 p.width = int(parsed_text['Size-1'])
             if options.width_height and 'Size-2' in parsed_text:
