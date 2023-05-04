@@ -1,9 +1,10 @@
 # SD webui txt2img script
 
-This script is meant for the stable diffusion webui by automatic1111 -> https://github.com/AUTOMATIC1111
+This script is meant for the stable diffusion webui -> https://github.com/AUTOMATIC1111/stable-diffusion-webui
 
-Put the script `process_png_metadata.py` in the `stable-diffusion-webui\scripts` folder then reload the webui and Simply drag 
-and drop or upload image files to modify a prompt, override default settings to modify images again.
+Clone or download this repository then manually Put the script `process_png_metadata.py` in the `stable-diffusion-webui\scripts` folder, reload the webui to access the script in the txt2img section.
+
+Drag and drop or upload image files to modify a prompt and override default settings to modify images.
 
 This file is specifically meant for a batch process of image files with metadata applicable to the txt2img section
 of the webui. Allows user to easily use the hires fix upscale to get better images instead of img2img upscale.
