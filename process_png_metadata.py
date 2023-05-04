@@ -24,14 +24,11 @@ class Script(scripts.Script):
         return "Process PNG Metadata Info"
 
     # Script shows up only on txt2image section
-    # could not get it to only show for is_txt2img property so used "not is_img2img"
-    # the script class apparently seems to set it to "script.is_txt2img = not is_img2img" too
     def show(self, is_img2img):
 
         return not is_img2img
     
     # set up ui to drag and drop the processed images and hold their file info
-    # checkbox to boolean check which parameters to keep or not 
     def ui(self, is_img2img):
 
         tab_index = gr.State(value=0)
@@ -46,6 +43,7 @@ class Script(scripts.Script):
                         input_dir = gr.Textbox(label="Input directory", **shared.hide_dirs, placeholder="Add input folder path", elem_id="files_batch_input_dir")
                         output_dir = gr.Textbox(label="Output directory", **shared.hide_dirs, placeholder="Add output folder path or Leave blank to use default path.", elem_id="files_batch_output_dir")
                 
+                # checkbox to boolean check which parameters to keep or not 
                 prompt = gr.Checkbox(False, label="Assign Prompt")
                 negative_prompt = gr.Checkbox(False, label="Assign Negative Prompt")
                 seed = gr.Checkbox(False, label="Assign Seed")
@@ -75,7 +73,7 @@ class Script(scripts.Script):
 
         image_batch = []
 
-        # operation based on current batch process tab
+        # Operation based on current batch process tab
         if tab_index == 0:
             for img in upload_imgs:
                 image_batch.append(Image.open(img.name))
@@ -157,9 +155,10 @@ class Script(scripts.Script):
         
             proc = process_images(p)
 
-            for n, processed_image in enumerate(proc.images):
-
-                images.save_image(image=processed_image, path=output_dir, basename='', existing_info=processed_image.info)
+            # Modified directory to save generated images in cache
+            if tab_index == 1 and output_dir != '':
+                for n, processed_image in enumerate(proc.images):
+                    images.save_image(image=processed_image, path=output_dir, basename='', existing_info=processed_image.info)
 
             images_list += proc.images
             all_prompts += proc.all_prompts
@@ -169,5 +168,3 @@ class Script(scripts.Script):
         processing.fix_seed(p)
 
         return Processed(p, images_list, p.seed, "", all_prompts=all_prompts, infotexts=infotexts)
-
-
