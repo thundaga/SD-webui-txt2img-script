@@ -76,14 +76,16 @@ class Script(scripts.Script):
         # Operation based on current batch process tab
         if tab_index == 0:
             for img in upload_imgs:
-                image_batch.append(Image.open(img.name))
+                if run_pnginfo(Image.open(img.name))[1] != None:
+                    image_batch.append(Image.open(img.name))
         elif tab_index == 1:
             assert not shared.cmd_opts.hide_ui_dir_config, '--hide-ui-dir-config option must be disabled'
             assert input_dir, 'input directory not selected'
 
             images_dir = shared.listfiles(input_dir)
             for img in images_dir:
-                image_batch.append(Image.open(img))
+                if run_pnginfo(Image.open(img))[1] != None:
+                    image_batch.append(Image.open(img))
 
         if tab_index == 1 and output_dir != '':
             p.do_not_save_samples = True
