@@ -44,16 +44,20 @@ class Script(scripts.Script):
                         output_dir = gr.Textbox(label="Output directory", **shared.hide_dirs, placeholder="Add output folder path or Leave blank to use default path.", elem_id="files_batch_output_dir")
                 
                 # checkbox to boolean check which parameters to keep or not 
+                model_name = gr.Checkbox(value=True, label="Assign Checkpoint")
                 prompt = gr.Checkbox(False, label="Assign Prompt")
                 negative_prompt = gr.Checkbox(False, label="Assign Negative Prompt")
                 seed = gr.Checkbox(False, label="Assign Seed")
+                subseed = gr.Checkbox(False, label="Assign Variation Seed")
+                subseed_strength = gr.Checkbox(False, label="Assign Variation Seed Strenght")
                 sampler_name = gr.Checkbox(False, label="Assign Sampler Name")
                 steps = gr.Checkbox(False, label="Assign Steps")
                 cfg_scale = gr.Checkbox(False, label="Assign CFG scale")
                 width_height = gr.Checkbox(False, label="Assign Width and Height")
                 denoising_strength = gr.Checkbox(False, label="Assign Denoising strength")
+                clip_skip = gr.Checkbox(False, label="Assign Clip Skip")
 
-                options = (prompt,negative_prompt,seed,sampler_name,steps,cfg_scale,width_height,denoising_strength)
+                options = (model_name,prompt,negative_prompt,seed,subseed,subseed_strength,sampler_name,steps,cfg_scale,width_height,denoising_strength,clip_skip)
 
                 gr.HTML("<p style=\"margin-bottom:0.75em\">Optional tags to remove or add in front/end of a positive prompt on all images</p>")
                 front_tags = gr.Textbox(label="Tags to add at the front")
@@ -68,7 +72,7 @@ class Script(scripts.Script):
     # Files are open as images and the png info is set to the processed class for each iterated process
     def run(self,p,tab_index,upload_imgs,front_tags,back_tags,remove_tags,input_dir,output_dir,*options):
 
-        options_tuple = namedtuple('options_tuple', ['prompt','negative_prompt','seed','sampler_name','steps','cfg_scale','width_height', 'denoising_strength'])
+        options_tuple = namedtuple('options_tuple', ['model_name','prompt','negative_prompt','seed','subseed','subseed_strength','sampler_name','steps','cfg_scale','width_height','denoising_strength','clip_skip'])
         options = options_tuple(*options)
 
         image_batch = []
@@ -138,23 +142,39 @@ class Script(scripts.Script):
                         back_tags = ',' + back_tags
                     p.prompt = ''.join([p.prompt, back_tags])
 
+            # TODO : DEBUG : Find a way to assign Clip Skip
+            if 'Clip skip' in parsed_text:
+                print("Test Clip Skip : {0}".format(parsed_text['Clip skip']))
+            if 'Variation seed' in parsed_text:
+                print("Test Sub seed : {0}".format(parsed_text['Variation seed']))
+            if 'Variation seed strength' in parsed_text:
+                print("Test Sub seed Strenght : {0}".format(parsed_text['Variation seed strength']))
+
+            if options.model_name and 'Model' in parsed_text:
+                p.override_settings['sd_model_checkpoint'] = parsed_text['Model']
             if options.negative_prompt and 'Negative prompt' in parsed_text:
                 p.negative_prompt = parsed_text['Negative prompt']
             if options.seed and 'Seed' in parsed_text:
                 p.seed = float(parsed_text['Seed'])
+            if options.subseed and 'Variation seed' in parsed_text:
+                p.subseed = float(parsed_text['Variation seed'])
+            if options.subseed_strength and 'Variation seed' in parsed_text:
+                p.subseed_strength = float(parsed_text['Variation seed strength'])
             if options.sampler_name and 'Sampler' in parsed_text:
                 p.sampler_name = parsed_text['Sampler']
             if options.steps and 'Steps' in parsed_text:
                 p.steps = int(parsed_text['Steps'])
             if options.cfg_scale and 'CFG scale' in parsed_text:
-                p.cfg_scale = float(parsed_text['CFG scale'])                        
+                p.cfg_scale = float(parsed_text['CFG scale'])
             if options.width_height and 'Size-1' in parsed_text:
                 p.width = int(parsed_text['Size-1'])
             if options.width_height and 'Size-2' in parsed_text:
                 p.height = int(parsed_text['Size-2'])
             if options.denoising_strength and 'Denoising strength' in parsed_text:
                 p.denoising_strength = float(parsed_text['Denoising strength'])
-        
+            if options.clip_skip and 'Clip skip' in parsed_text:
+                p.override_settings['CLIP_stop_at_last_layers'] = int(parsed_text['Clip skip'])
+           
             proc = process_images(p)
 
             # Modified directory to save generated images in cache
