@@ -43,17 +43,8 @@ class Script(scripts.Script):
                         input_dir = gr.Textbox(label="Input directory", **shared.hide_dirs, placeholder="Add input folder path", elem_id="files_batch_input_dir")
                         output_dir = gr.Textbox(label="Output directory", **shared.hide_dirs, placeholder="Add output folder path or Leave blank to use default path.", elem_id="files_batch_output_dir")
                 
-                # checkbox to boolean check which parameters to keep or not 
-                prompt = gr.Checkbox(False, label="Assign Prompt")
-                negative_prompt = gr.Checkbox(False, label="Assign Negative Prompt")
-                seed = gr.Checkbox(False, label="Assign Seed")
-                sampler_name = gr.Checkbox(False, label="Assign Sampler Name")
-                steps = gr.Checkbox(False, label="Assign Steps")
-                cfg_scale = gr.Checkbox(False, label="Assign CFG scale")
-                width_height = gr.Checkbox(False, label="Assign Width and Height")
-                denoising_strength = gr.Checkbox(False, label="Assign Denoising strength")
-
-                options = (prompt,negative_prompt,seed,sampler_name,steps,cfg_scale,width_height,denoising_strength)
+                # CheckboxGroup with all parameters assignable from the input image (output is a list with the Name of the Checkbox checked ex: ["Checkpoint", "Prompt"]) 
+                options = gr.CheckboxGroup(["Checkpoint", "VAE", "Prompt", "Negative Prompt", "Seed", "Variation Seed", "Variation Seed Strenght", "Sampler", "Steps", "CFG scale", "Width and Height", "Denoising Strength", "Clip Skip"], label="Assign from input image", info="Checked : Assigned from the input images\nUnchecked : Assigned from the UI")
 
                 gr.HTML("<p style=\"margin-bottom:0.75em\">Optional tags to remove or add in front/end of a positive prompt on all images</p>")
                 front_tags = gr.Textbox(label="Tags to add at the front")
@@ -63,13 +54,10 @@ class Script(scripts.Script):
         tab_batch.select(fn=lambda: 0, inputs=[], outputs=[tab_index])
         tab_batch_dir.select(fn=lambda: 1, inputs=[], outputs=[tab_index])
 
-        return [tab_index,upload_imgs,front_tags,back_tags,remove_tags,input_dir,output_dir,*options]
+        return [tab_index,upload_imgs,front_tags,back_tags,remove_tags,input_dir,output_dir,options]
 
     # Files are open as images and the png info is set to the processed class for each iterated process
-    def run(self,p,tab_index,upload_imgs,front_tags,back_tags,remove_tags,input_dir,output_dir,*options):
-
-        options_tuple = namedtuple('options_tuple', ['prompt','negative_prompt','seed','sampler_name','steps','cfg_scale','width_height', 'denoising_strength'])
-        options = options_tuple(*options)
+    def run(self,p,tab_index,upload_imgs,front_tags,back_tags,remove_tags,input_dir,output_dir,options):
 
         image_batch = []
 
@@ -103,7 +91,7 @@ class Script(scripts.Script):
             my_text = run_pnginfo(image)[1]
             parsed_text = parse_generation_parameters(my_text)
 
-            if options.prompt and 'Prompt' in parsed_text:
+            if "Prompt" in options and 'Prompt' in parsed_text:
                 p.prompt = parsed_text['Prompt']
 
                 if remove_tags:
@@ -138,24 +126,36 @@ class Script(scripts.Script):
                         back_tags = ',' + back_tags
                     p.prompt = ''.join([p.prompt, back_tags])
 
-            if options.negative_prompt and 'Negative prompt' in parsed_text:
+            if "Checkpoint" in options and 'Model' in parsed_text:
+                p.override_settings['sd_model_checkpoint'] = parsed_text['Model']
+            if "Negative Prompt" in options and 'Negative prompt' in parsed_text:
                 p.negative_prompt = parsed_text['Negative prompt']
-            if options.seed and 'Seed' in parsed_text:
+            if "Seed" in options and 'Seed' in parsed_text:
                 p.seed = float(parsed_text['Seed'])
-            if options.sampler_name and 'Sampler' in parsed_text:
+            if "Variation Seed" in options and 'Variation seed' in parsed_text:
+                p.subseed = float(parsed_text['Variation seed'])
+            if "Variation Seed Strenght" in options and 'Variation seed strength' in parsed_text:
+                p.subseed_strength = float(parsed_text['Variation seed strength'])
+            if "Sampler" in options and 'Sampler' in parsed_text:
                 p.sampler_name = parsed_text['Sampler']
-            if options.steps and 'Steps' in parsed_text:
+            if "Steps" in options and 'Steps' in parsed_text:
                 p.steps = int(parsed_text['Steps'])
-            if options.cfg_scale and 'CFG scale' in parsed_text:
-                p.cfg_scale = float(parsed_text['CFG scale'])                        
-            if options.width_height and 'Size-1' in parsed_text:
+            if "CFG scale" in options and 'CFG scale' in parsed_text:
+                p.cfg_scale = float(parsed_text['CFG scale'])
+            if "Width and Height" in options and 'Size-1' in parsed_text:
                 p.width = int(parsed_text['Size-1'])
-            if options.width_height and 'Size-2' in parsed_text:
+            if "Width and Height" in options and 'Size-2' in parsed_text:
                 p.height = int(parsed_text['Size-2'])
-            if options.denoising_strength and 'Denoising strength' in parsed_text:
+            if "Denoising Strength" in options and 'Denoising strength' in parsed_text:
                 p.denoising_strength = float(parsed_text['Denoising strength'])
-        
+            if "Clip Skip" in options and 'Clip skip' in parsed_text:
+                p.override_settings['CLIP_stop_at_last_layers'] = int(parsed_text['Clip skip'])
+            
             proc = process_images(p)
+
+            # Reset Hires prompts (else the prompts of the first image will be used as Hires prompt for all the others)
+            p.hr_prompt = ""
+            p.hr_negative_prompt = ""
 
             # Modified directory to save generated images in cache
             if tab_index == 1 and output_dir != '':
