@@ -15,7 +15,7 @@ overall features include:
   - override default generation settings with image metadata
 
 ### script interface
-![alt text](https://github.com/thundaga/StableDiffusionScripts/blob/main/screenshot.PNG?raw=true)
+![alt text](https://github.com/thundaga/StableDiffusionScripts/blob/main/script_interface.PNG?raw=true)
 
 source references this discussion -> https://github.com/AUTOMATIC1111/stable-diffusion-webui/discussions/4938
 
