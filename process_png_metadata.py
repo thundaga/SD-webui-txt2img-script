@@ -14,6 +14,7 @@ from modules.shared import opts
 from modules.generation_parameters_copypaste import parse_generation_parameters
 from modules.extras import run_pnginfo
 
+import json # DEBUG
 # github repository -> https://github.com/thundaga/SD-webui-txt2img-script
 
 class Script(scripts.Script): 
@@ -44,7 +45,7 @@ class Script(scripts.Script):
                         output_dir = gr.Textbox(label="Output directory", **shared.hide_dirs, placeholder="Add output folder path or Leave blank to use default path.", elem_id="files_batch_output_dir")
                 
                 # CheckboxGroup with all parameters assignable from the input image (output is a list with the Name of the Checkbox checked ex: ["Checkpoint", "Prompt"]) 
-                options = gr.CheckboxGroup(["Checkpoint", "Prompt", "Negative Prompt", "Seed", "Variation Seed", "Variation Seed Strenght", "Sampler", "Steps", "CFG scale", "Width and Height", "Denoising Strength", "Clip Skip"], label="Assign from input image", info="Checked : Assigned from the input images\nUnchecked : Assigned from the UI")
+                options = gr.CheckboxGroup(["Checkpoint", "Prompt", "Negative Prompt", "Seed", "Variation Seed", "Variation Seed Strenght", "Sampler", "Steps", "CFG scale", "Width and Height", "Upscaler", "Denoising Strength", "Hires Scale or Width and Height", "Clip Skip", "Face restoration"], label="Assign from input image", info="Checked : Assigned from the input images\nUnchecked : Assigned from the UI")
 
                 gr.HTML("<p style=\"margin-bottom:0.75em\">Optional tags to remove or add in front/end of a positive prompt on all images</p>")
                 front_tags = gr.Textbox(label="Tags to add at the front")
@@ -126,8 +127,8 @@ class Script(scripts.Script):
                         back_tags = ',' + back_tags
                     p.prompt = ''.join([p.prompt, back_tags])
 
-            if "Checkpoint" in options and 'Model' in parsed_text:
-                p.override_settings['sd_model_checkpoint'] = parsed_text['Model']
+            if "Checkpoint" in options and 'Model hash' in parsed_text:
+                p.override_settings['sd_model_checkpoint'] = parsed_text['Model hash']
             if "Negative Prompt" in options and 'Negative prompt' in parsed_text:
                 p.negative_prompt = parsed_text['Negative prompt']
             if "Seed" in options and 'Seed' in parsed_text:
@@ -146,16 +147,34 @@ class Script(scripts.Script):
                 p.width = int(parsed_text['Size-1'])
             if "Width and Height" in options and 'Size-2' in parsed_text:
                 p.height = int(parsed_text['Size-2'])
+            if "Upscaler" in options and 'Hires upscaler' in parsed_text:
+                p.hr_upscaler = parsed_text['Hires upscaler']
             if "Denoising Strength" in options and 'Denoising strength' in parsed_text:
                 p.denoising_strength = float(parsed_text['Denoising strength'])
+            if "Hires Scale or Width and Height" in options:
+                # Reset hr_settings to avoid wrong settings
+                p.hr_scale = None
+                p.hr_resize_x = int(0)
+                p.hr_resize_y= int(0)
+                if 'Hires upscale' in parsed_text:
+                    p.hr_scale = float(parsed_text['Hires upscale'])
+                if 'Hires resize-1' in parsed_text:
+                    p.hr_resize_x = int(parsed_text['Hires resize-1'])
+                if 'Hires resize-2' in parsed_text:
+                    p.hr_resize_y = int(parsed_text['Hires resize-2'])
             if "Clip Skip" in options and 'Clip skip' in parsed_text:
                 p.override_settings['CLIP_stop_at_last_layers'] = int(parsed_text['Clip skip'])
+            if "Face restoration" in options and 'Face restoration' in parsed_text:
+                p.restore_faces = parsed_text['Face restoration']
             
             proc = process_images(p)
 
             # Reset Hires prompts (else the prompts of the first image will be used as Hires prompt for all the others)
             p.hr_prompt = ""
             p.hr_negative_prompt = ""
+
+            # Reset extra_generation_params as it stores the Hires resize and scale (Avoid having wrong info in the infotext)
+            p.extra_generation_params = {}
 
             # Modified directory to save generated images in cache
             if tab_index == 1 and output_dir != '':
