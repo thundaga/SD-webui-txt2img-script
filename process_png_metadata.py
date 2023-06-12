@@ -14,7 +14,6 @@ from modules.shared import opts
 from modules.generation_parameters_copypaste import parse_generation_parameters
 from modules.extras import run_pnginfo
 
-import json # DEBUG
 # github repository -> https://github.com/thundaga/SD-webui-txt2img-script
 
 class Script(scripts.Script): 
