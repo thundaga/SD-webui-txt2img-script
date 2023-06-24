@@ -2,7 +2,6 @@ import gradio as gr
 import re
 from PIL import Image
 import os
-from collections import namedtuple
 
 import modules.scripts as scripts
 from modules import processing
@@ -18,12 +17,10 @@ from modules.extras import run_pnginfo
 
 class Script(scripts.Script): 
 
-    # title of script on dropdown menu
     def title(self):
 
         return "Process PNG Metadata Info"
 
-    # Script shows up only on txt2image section
     def show(self, is_img2img):
 
         return not is_img2img
@@ -44,7 +41,7 @@ class Script(scripts.Script):
                         output_dir = gr.Textbox(label="Output directory", **shared.hide_dirs, placeholder="Add output folder path or Leave blank to use default path.", elem_id="files_batch_output_dir")
                 
                 # CheckboxGroup with all parameters assignable from the input image (output is a list with the Name of the Checkbox checked ex: ["Checkpoint", "Prompt"]) 
-                options = gr.CheckboxGroup(["Checkpoint", "Prompt", "Negative Prompt", "Seed", "Variation Seed", "Variation Seed Strenght", "Sampler", "Steps", "CFG scale", "Width and Height", "Denoising Strength", "Clip Skip"], label="Assign from input image", info="Checked : Assigned from the input images\nUnchecked : Assigned from the UI")
+                options = gr.CheckboxGroup(["Checkpoint", "Prompt", "Negative Prompt", "Seed", "Variation Seed", "Variation Seed Strength", "Sampler", "Steps", "CFG scale", "Width and Height", "Denoising Strength", "Clip Skip"], label="Assign from input image", info="Checked : Assigned from the input images\nUnchecked : Assigned from the UI")
 
                 gr.HTML("<p style=\"margin-bottom:0.75em\">Optional tags to remove or add in front/end of a positive prompt on all images</p>")
                 front_tags = gr.Textbox(label="Tags to add at the front")
@@ -134,7 +131,7 @@ class Script(scripts.Script):
                 p.seed = float(parsed_text['Seed'])
             if "Variation Seed" in options and 'Variation seed' in parsed_text:
                 p.subseed = float(parsed_text['Variation seed'])
-            if "Variation Seed Strenght" in options and 'Variation seed strength' in parsed_text:
+            if "Variation Seed Strength" in options and 'Variation seed strength' in parsed_text:
                 p.subseed_strength = float(parsed_text['Variation seed strength'])
             if "Sampler" in options and 'Sampler' in parsed_text:
                 p.sampler_name = parsed_text['Sampler']
@@ -156,6 +153,7 @@ class Script(scripts.Script):
             # Reset Hires prompts (else the prompts of the first image will be used as Hires prompt for all the others)
             p.hr_prompt = ""
             p.hr_negative_prompt = ""
+            p.extra_generation_params = {}
 
             # Modified directory to save generated images in cache
             if tab_index == 1 and output_dir != '':
@@ -166,7 +164,7 @@ class Script(scripts.Script):
             all_prompts += proc.all_prompts
             infotexts += proc.infotexts
 
-            
+
         processing.fix_seed(p)
 
         return Processed(p, images_list, p.seed, "", all_prompts=all_prompts, infotexts=infotexts)
