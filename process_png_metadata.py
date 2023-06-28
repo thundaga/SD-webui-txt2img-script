@@ -40,7 +40,7 @@ def override_settings(p, options, parsed_text):
     if "Checkpoint" in options and 'Model hash' in parsed_text:
         p.override_settings['sd_model_checkpoint'] = parsed_text['Model hash']
     if "Clip Skip" in options and 'Clip skip' in parsed_text:
-                p.override_settings['CLIP_stop_at_last_layers'] = int(parsed_text['Clip skip'])
+        p.override_settings['CLIP_stop_at_last_layers'] = int(parsed_text['Clip skip'])
     return p
 
 def width_height(p, parsed_text):
