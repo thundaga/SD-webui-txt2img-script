@@ -1,7 +1,6 @@
 import gradio as gr
 import re
 from PIL import Image
-import os
 
 import modules.scripts as scripts
 from modules import processing
@@ -15,12 +14,106 @@ from modules.extras import run_pnginfo
 
 # github repository -> https://github.com/thundaga/SD-webui-txt2img-script
 
+def int_convert(text):
+    return int(text)
+
+def float_convert(text):
+    return float(text)
+
+def boolean_convert(text):
+    return True if (text == "true") else False
+
+def hires_resize(p, parsed_text):
+    # Reset hr_settings to avoid wrong settings
+    p.hr_scale = None
+    p.hr_resize_x = int(0)
+    p.hr_resize_y= int(0)
+    if 'Hires upscale' in parsed_text:
+        p.hr_scale = float(parsed_text['Hires upscale'])
+    if 'Hires resize-1' in parsed_text:
+        p.hr_resize_x = int(parsed_text['Hires resize-1'])
+    if 'Hires resize-2' in parsed_text:
+        p.hr_resize_y = int(parsed_text['Hires resize-2'])
+    return p
+
+def override_settings(p, options, parsed_text):
+    if "Checkpoint" in options and 'Model hash' in parsed_text:
+        p.override_settings['sd_model_checkpoint'] = parsed_text['Model hash']
+    if "Clip Skip" in options and 'Clip skip' in parsed_text:
+                p.override_settings['CLIP_stop_at_last_layers'] = int(parsed_text['Clip skip'])
+    return p
+
+def width_height(p, parsed_text):
+    if 'Size-1' in parsed_text:
+        p.width = int(parsed_text['Size-1'])
+    if 'Size-2' in parsed_text:
+        p.height = int(parsed_text['Size-2'])
+    return p
+
+def prompt_modifications(parsed_text, front_tags, back_tags, remove_tags):
+    prompt = parsed_text['Prompt']
+
+    if remove_tags:
+        remove_tags = remove_tags.strip("\n")
+        tags = [x.strip() for x in remove_tags.split(',')]
+        while("" in tags):
+            tags.remove("")
+        text = prompt
+
+        for tag in tags:
+            text = re.sub("\(\(" + tag + "\)\)|\(" + tag + ":.*?\)|<" + tag + ":.*?>|<" + tag + ">", "", text)
+            text = re.sub(r'\([^\(]*(%s)\S*\)' % tag, '', text)
+            text = re.sub(r'\[[^\[]*(%s)\S*\]' % tag, '', text)
+            text = re.sub(r'<[^<]*(%s)\S*>' % tag, '', text)
+            text = re.sub(r'\b' + tag + r'\b', '', text)
+
+        # remove consecutive comma patterns with a coma and space
+        pattern = re.compile(r'(,\s){2,}')
+        text = re.sub(pattern, ', ', text)
+
+        # remove final comma at start of prompt
+        text = text.replace(", ", "", 1)
+        prompt = text
+
+    if front_tags:
+        if front_tags.endswith(' ') == False and front_tags.endswith(',') == False:
+            front_tags = front_tags + ','
+        prompt = ''.join([front_tags, prompt])
+
+    if back_tags:
+        if back_tags.startswith(' ') == False and back_tags.startswith(',') == False:
+            back_tags = ',' + back_tags
+        prompt = ''.join([prompt, back_tags])
+    return prompt
+
+
+# key->(option name) : Values->tuple(metadata name, object property, property specific functions)
+prompt_options = {
+    "Checkpoint":                       ("Model hash", None, override_settings),
+    "Prompt":                           ("Prompt", "prompt", prompt_modifications),
+    "Negative Prompt":                  ("Negative prompt", "negative_prompt", None),
+    "Seed":                             ("Seed", "seed", float_convert),
+    "Variation Seed":                   ("Variation seed", "subseed", float_convert),
+    "Variation Seed Strength":          ("Variation seed strength", "subseed_strength", float_convert),
+    "Sampler":                          ("Sampler", "sampler_name", None),
+    "Steps":                            ("Steps", "steps", int_convert),
+    "CFG scale":                        ("CFG scale", "cfg_scale", float_convert),
+    "Width and Height":                 (None, None, width_height),
+    "Upscaler":                         ("Hires upscaler", "hr_upscaler", None),
+    "Denoising Strength":               ("Denoising strength", "denoising_strength", float_convert),
+    "Hires Scale or Width and Height":  (None, None, hires_resize),
+    "Clip Skip":                        ("Clip skip", None, override_settings),
+    "Face restoration":                 ("Face restoration", "restore_faces", boolean_convert),
+}
+
 class Script(scripts.Script): 
 
+    # title of script on dropdown menu
     def title(self):
 
         return "Process PNG Metadata Info"
 
+    # Script shows up only on txt2image section
     def show(self, is_img2img):
 
         return not is_img2img
@@ -41,7 +134,7 @@ class Script(scripts.Script):
                         output_dir = gr.Textbox(label="Output directory", **shared.hide_dirs, placeholder="Add output folder path or Leave blank to use default path.", elem_id="files_batch_output_dir")
                 
                 # CheckboxGroup with all parameters assignable from the input image (output is a list with the Name of the Checkbox checked ex: ["Checkpoint", "Prompt"]) 
-                options = gr.CheckboxGroup(["Checkpoint", "Prompt", "Negative Prompt", "Seed", "Variation Seed", "Variation Seed Strength", "Sampler", "Steps", "CFG scale", "Width and Height", "Denoising Strength", "Clip Skip"], label="Assign from input image", info="Checked : Assigned from the input images\nUnchecked : Assigned from the UI")
+                options = gr.CheckboxGroup(list(prompt_options.keys()), label="Assign from input image", info="Checked : Assigned from the input images\nUnchecked : Assigned from the UI")
 
                 gr.HTML("<p style=\"margin-bottom:0.75em\">Optional tags to remove or add in front/end of a positive prompt on all images</p>")
                 front_tags = gr.Textbox(label="Tags to add at the front")
@@ -88,71 +181,37 @@ class Script(scripts.Script):
             my_text = run_pnginfo(image)[1]
             parsed_text = parse_generation_parameters(my_text)
 
-            if "Prompt" in options and 'Prompt' in parsed_text:
-                p.prompt = parsed_text['Prompt']
+            metadata = 0
+            p_property = 1
+            func = 2
+            # go through dictionary and commit uniform actions on similar object properties
+            for option, tuple in prompt_options.items():
+                match option:
+                    case "Prompt":
+                        if option in options and  tuple[metadata] in parsed_text:
+                            setattr(p, tuple[p_property], tuple[func](parsed_text,front_tags,back_tags,remove_tags))
+                    case "Width and Height":
+                        if option in options:
+                            p = tuple[func](p, parsed_text)
+                    case "Hires Scale or Width and Height":
+                        if option in options:
+                            p = tuple[func](p, parsed_text)
+                    case "Checkpoint" | "Clip Skip":
+                        p = tuple[func](p, options, parsed_text)
+                    case _:
+                        if option in options and tuple[metadata] in parsed_text:
+                            if tuple[func] == None:
+                                setattr(p, tuple[p_property], parsed_text[tuple[metadata]])
+                            else:
+                                setattr(p, tuple[p_property], tuple[func](parsed_text[tuple[metadata]]))
 
-                if remove_tags:
-                    remove_tags = remove_tags.strip("\n")
-                    tags = [x.strip() for x in remove_tags.split(',')]
-                    while("" in tags):
-                        tags.remove("")
-                    text = p.prompt
-
-                    for tag in tags:
-                        text = re.sub("\(\(" + tag + "\)\)|\(" + tag + ":.*?\)|<" + tag + ":.*?>|<" + tag + ">", "", text)
-                        text = re.sub(r'\([^\(]*(%s)\S*\)' % tag, '', text)
-                        text = re.sub(r'\[[^\[]*(%s)\S*\]' % tag, '', text)
-                        text = re.sub(r'<[^<]*(%s)\S*>' % tag, '', text)
-                        text = re.sub(r'\b' + tag + r'\b', '', text)
-
-                    # remove consecutive comma patterns with a coma and space
-                    pattern = re.compile(r'(,\s){2,}')
-                    text = re.sub(pattern, ', ', text)
-
-                    # remove final comma at start of prompt
-                    text = text.replace(", ", "", 1)
-                    p.prompt = text
-
-                if front_tags:
-                    if front_tags.endswith(' ') == False and front_tags.endswith(',') == False:
-                        front_tags = front_tags + ','
-                    p.prompt = ''.join([front_tags, p.prompt])
-
-                if back_tags:
-                    if back_tags.startswith(' ') == False and back_tags.startswith(',') == False:
-                        back_tags = ',' + back_tags
-                    p.prompt = ''.join([p.prompt, back_tags])
-
-            if "Checkpoint" in options and 'Model' in parsed_text:
-                p.override_settings['sd_model_checkpoint'] = parsed_text['Model']
-            if "Negative Prompt" in options and 'Negative prompt' in parsed_text:
-                p.negative_prompt = parsed_text['Negative prompt']
-            if "Seed" in options and 'Seed' in parsed_text:
-                p.seed = float(parsed_text['Seed'])
-            if "Variation Seed" in options and 'Variation seed' in parsed_text:
-                p.subseed = float(parsed_text['Variation seed'])
-            if "Variation Seed Strength" in options and 'Variation seed strength' in parsed_text:
-                p.subseed_strength = float(parsed_text['Variation seed strength'])
-            if "Sampler" in options and 'Sampler' in parsed_text:
-                p.sampler_name = parsed_text['Sampler']
-            if "Steps" in options and 'Steps' in parsed_text:
-                p.steps = int(parsed_text['Steps'])
-            if "CFG scale" in options and 'CFG scale' in parsed_text:
-                p.cfg_scale = float(parsed_text['CFG scale'])
-            if "Width and Height" in options and 'Size-1' in parsed_text:
-                p.width = int(parsed_text['Size-1'])
-            if "Width and Height" in options and 'Size-2' in parsed_text:
-                p.height = int(parsed_text['Size-2'])
-            if "Denoising Strength" in options and 'Denoising strength' in parsed_text:
-                p.denoising_strength = float(parsed_text['Denoising strength'])
-            if "Clip Skip" in options and 'Clip skip' in parsed_text:
-                p.override_settings['CLIP_stop_at_last_layers'] = int(parsed_text['Clip skip'])
-            
             proc = process_images(p)
 
             # Reset Hires prompts (else the prompts of the first image will be used as Hires prompt for all the others)
             p.hr_prompt = ""
             p.hr_negative_prompt = ""
+
+            # Reset extra_generation_params as it stores the Hires resize and scale (Avoid having wrong info in the infotext)
             p.extra_generation_params = {}
 
             # Modified directory to save generated images in cache
@@ -163,8 +222,7 @@ class Script(scripts.Script):
             images_list += proc.images
             all_prompts += proc.all_prompts
             infotexts += proc.infotexts
-
-
+            
         processing.fix_seed(p)
 
         return Processed(p, images_list, p.seed, "", all_prompts=all_prompts, infotexts=infotexts)
