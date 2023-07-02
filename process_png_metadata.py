@@ -1,6 +1,7 @@
 import gradio as gr
 import re
 from PIL import Image
+import pathlib
 
 import modules.scripts as scripts
 from modules import processing
@@ -14,16 +15,16 @@ from modules.extras import run_pnginfo
 
 # github repository -> https://github.com/thundaga/SD-webui-txt2img-script
 
-def int_convert(text):
+def int_convert(text: str) -> int:
     return int(text)
 
-def float_convert(text):
+def float_convert(text: str) -> float:
     return float(text)
 
-def boolean_convert(text):
+def boolean_convert(text: str) -> bool:
     return True if (text == "true") else False
 
-def hires_resize(p, parsed_text):
+def hires_resize(p, parsed_text: dict):
     # Reset hr_settings to avoid wrong settings
     p.hr_scale = None
     p.hr_resize_x = int(0)
@@ -36,21 +37,21 @@ def hires_resize(p, parsed_text):
         p.hr_resize_y = int(parsed_text['Hires resize-2'])
     return p
 
-def override_settings(p, options, parsed_text):
+def override_settings(p, options: list, parsed_text: dict):
     if "Checkpoint" in options and 'Model hash' in parsed_text:
         p.override_settings['sd_model_checkpoint'] = parsed_text['Model hash']
     if "Clip Skip" in options and 'Clip skip' in parsed_text:
         p.override_settings['CLIP_stop_at_last_layers'] = int(parsed_text['Clip skip'])
     return p
 
-def width_height(p, parsed_text):
+def width_height(p, parsed_text: dict):
     if 'Size-1' in parsed_text:
         p.width = int(parsed_text['Size-1'])
     if 'Size-2' in parsed_text:
         p.height = int(parsed_text['Size-2'])
     return p
 
-def prompt_modifications(parsed_text, front_tags, back_tags, remove_tags):
+def prompt_modifications(parsed_text: dict, front_tags: str, back_tags: str, remove_tags: str) -> str:
     prompt = parsed_text['Prompt']
 
     if remove_tags:
@@ -86,6 +87,23 @@ def prompt_modifications(parsed_text, front_tags, back_tags, remove_tags):
         prompt = ''.join([prompt, back_tags])
     return prompt
 
+# build valid txt and image files e.g (txt(utf-8),img(png)) into valid parsed dictionaries with metadata info 
+def build_file_list(file, tab_index: int, file_list: list[dict]) -> list[dict]:
+
+    file = file.name if tab_index == 0 else file
+    file_ext = pathlib.Path(file).suffix
+
+    if file_ext == ".txt":
+        text = open(file, "r", encoding="utf-8").read()
+        if text != None and text != "":
+            parsed_text = parse_generation_parameters(text)
+            file_list.append(parsed_text)
+    elif run_pnginfo(Image.open(file))[1] != None:
+        text = run_pnginfo(Image.open(file))[1]
+        parsed_text = parse_generation_parameters(text)
+        file_list.append(parsed_text)
+
+    return file_list
 
 # key->(option name) : Values->tuple(metadata name, object property, property specific functions)
 prompt_options = {
@@ -108,12 +126,10 @@ prompt_options = {
 
 class Script(scripts.Script): 
 
-    # title of script on dropdown menu
     def title(self):
 
         return "Process PNG Metadata Info"
 
-    # Script shows up only on txt2image section
     def show(self, is_img2img):
 
         return not is_img2img
@@ -127,7 +143,7 @@ class Script(scripts.Script):
             with gr.Column(variant='compact'):
                 with gr.Tabs(elem_id="mode_extras"):
                     with gr.TabItem('Batch Process', elem_id="extras_batch_process_tab") as tab_batch:
-                        upload_imgs = gr.File(label="Batch Process", file_count="multiple", interactive=True, type="file", elem_id=self.elem_id("files"))
+                        upload_files = gr.File(label="Batch Process", file_count="multiple", interactive=True, type="file", elem_id=self.elem_id("files"))
 
                     with gr.TabItem('Batch from Directory', elem_id="extras_batch_directory_tab") as tab_batch_dir:
                         input_dir = gr.Textbox(label="Input directory", **shared.hide_dirs, placeholder="Add input folder path", elem_id="files_batch_input_dir")
@@ -144,26 +160,24 @@ class Script(scripts.Script):
         tab_batch.select(fn=lambda: 0, inputs=[], outputs=[tab_index])
         tab_batch_dir.select(fn=lambda: 1, inputs=[], outputs=[tab_index])
 
-        return [tab_index,upload_imgs,front_tags,back_tags,remove_tags,input_dir,output_dir,options]
+        return [tab_index,upload_files,front_tags,back_tags,remove_tags,input_dir,output_dir,options]
 
     # Files are open as images and the png info is set to the processed class for each iterated process
-    def run(self,p,tab_index,upload_imgs,front_tags,back_tags,remove_tags,input_dir,output_dir,options):
+    def run(self,p,tab_index,upload_files,front_tags,back_tags,remove_tags,input_dir,output_dir,options):
 
         image_batch = []
 
         # Operation based on current batch process tab
         if tab_index == 0:
-            for img in upload_imgs:
-                if run_pnginfo(Image.open(img.name))[1] != None:
-                    image_batch.append(Image.open(img.name))
+            for file in upload_files:
+                image_batch = build_file_list(file, tab_index, image_batch)
         elif tab_index == 1:
             assert not shared.cmd_opts.hide_ui_dir_config, '--hide-ui-dir-config option must be disabled'
             assert input_dir, 'input directory not selected'
 
-            images_dir = shared.listfiles(input_dir)
-            for img in images_dir:
-                if run_pnginfo(Image.open(img))[1] != None:
-                    image_batch.append(Image.open(img))
+            files_dir = shared.listfiles(input_dir)
+            for file in files_dir:
+                image_batch = build_file_list(file, tab_index, image_batch)
 
         if tab_index == 1 and output_dir != '':
             p.do_not_save_samples = True
@@ -175,15 +189,10 @@ class Script(scripts.Script):
         all_prompts = []
         infotexts = []
 
-        for image in image_batch:
+        for parsed_text in image_batch:
             state.job = f"{state.job_no + 1} out of {state.job_count}"
 
-            my_text = run_pnginfo(image)[1]
-            parsed_text = parse_generation_parameters(my_text)
-
-            metadata = 0
-            p_property = 1
-            func = 2
+            metadata, p_property, func = 0, 1, 2
             # go through dictionary and commit uniform actions on similar object properties
             for option, tuple in prompt_options.items():
                 match option:
