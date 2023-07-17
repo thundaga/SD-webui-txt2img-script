@@ -150,7 +150,7 @@ class Script(scripts.Script):
                         output_dir = gr.Textbox(label="Output directory", **shared.hide_dirs, placeholder="Add output folder path or Leave blank to use default path.", elem_id="files_batch_output_dir")
                 
                 # CheckboxGroup with all parameters assignable from the input image (output is a list with the Name of the Checkbox checked ex: ["Checkpoint", "Prompt"]) 
-                options = gr.CheckboxGroup(list(prompt_options.keys()), label="Assign from input image", info="Checked : Assigned from the input images\nUnchecked : Assigned from the UI")
+                options = gr.Dropdown(list(prompt_options.keys()), label="Assign from input image", info="Select are assigned from the input, the rest from UI", multiselect = True)
 
                 gr.HTML("<p style=\"margin-bottom:0.75em\">Optional tags to remove or add in front/end of a positive prompt on all images</p>")
                 front_tags = gr.Textbox(label="Tags to add at the front")
