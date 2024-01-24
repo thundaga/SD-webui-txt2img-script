@@ -25,10 +25,15 @@ def boolean_convert(text: str) -> bool:
     return True if (text == "true") else False
 
 def hires_resize(p, parsed_text: dict):
+    # Fix the issue when the values doesn't exist
+    # Uses the default value (skip the reset part)
+    if not ('Hires upscale' in parsed_text or parsed_text['Hires resize-1'] != 0 or parsed_text['Hires resize-2'] != 0):
+        return p
+
     # Reset hr_settings to avoid wrong settings
     p.hr_scale = None
     p.hr_resize_x = int(0)
-    p.hr_resize_y= int(0)
+    p.hr_resize_y = int(0)
     if 'Hires upscale' in parsed_text:
         p.hr_scale = float(parsed_text['Hires upscale'])
     if 'Hires resize-1' in parsed_text:
