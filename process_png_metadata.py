@@ -97,7 +97,7 @@ def build_file_list(file, tab_index: int, file_list: list[dict]) -> list[dict]:
 
     file = file.name if tab_index == 0 else file
     file_ext = pathlib.Path(file).suffix
-    filename = pathlib.Path(file).name.split(".")[0]
+    filename = pathlib.Path(file).stem
 
     if file_ext == ".txt":
         text = open(file, "r", encoding="utf-8").read()
