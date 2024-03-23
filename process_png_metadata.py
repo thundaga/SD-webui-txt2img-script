@@ -100,12 +100,12 @@ def build_file_list(file, tab_index: int, file_list: list[dict]) -> list[dict]:
 
     if file_ext == ".txt":
         text = open(file, "r", encoding="utf-8").read()
-        if text != None and text != "":
-            parsed_text = parse_generation_parameters(text)
-            file_list.append(parsed_text)
     elif run_pnginfo(Image.open(file))[1] != None:
         text = run_pnginfo(Image.open(file))[1]
+    
+    if text != None and text != "":
         parsed_text = parse_generation_parameters(text)
+        parsed_text["filename"] = filename
         file_list.append(parsed_text)
 
     return file_list
