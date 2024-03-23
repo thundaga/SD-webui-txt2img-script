@@ -97,15 +97,16 @@ def build_file_list(file, tab_index: int, file_list: list[dict]) -> list[dict]:
 
     file = file.name if tab_index == 0 else file
     file_ext = pathlib.Path(file).suffix
+    filename = pathlib.Path(file).stem
 
     if file_ext == ".txt":
         text = open(file, "r", encoding="utf-8").read()
-        if text != None and text != "":
-            parsed_text = parse_generation_parameters(text)
-            file_list.append(parsed_text)
     elif run_pnginfo(Image.open(file))[1] != None:
         text = run_pnginfo(Image.open(file))[1]
+    
+    if text != None and text != "":
         parsed_text = parse_generation_parameters(text)
+        parsed_text["filename"] = filename
         file_list.append(parsed_text)
 
     return file_list
@@ -153,7 +154,8 @@ class Script(scripts.Script):
                     with gr.TabItem('Batch from Directory', elem_id="extras_batch_directory_tab") as tab_batch_dir:
                         input_dir = gr.Textbox(label="Input directory", **shared.hide_dirs, placeholder="Add input folder path", elem_id="files_batch_input_dir")
                         output_dir = gr.Textbox(label="Output directory", **shared.hide_dirs, placeholder="Add output folder path or Leave blank to use default path.", elem_id="files_batch_output_dir")
-                
+                        filename_format = gr.Dropdown(label="Output filename format", choices=["Exact same filename as Input file", "Same filename as Input file but with extrat digits", "Standard - Simple digits"], value="Standard - Simple digits", info="The \"Exact same filename\" option might crash or overwrite file(s) if there are multiple files with the same name in the input directory", interactive=True, elem_id="files_batch_filename_type")
+
                 # CheckboxGroup with all parameters assignable from the input image (output is a list with the Name of the Checkbox checked ex: ["Checkpoint", "Prompt"]) 
                 options = gr.Dropdown(list(prompt_options.keys()), label="Assign from input image", info="Select are assigned from the input, the rest from UI", multiselect = True)
 
@@ -165,10 +167,10 @@ class Script(scripts.Script):
         tab_batch.select(fn=lambda: 0, inputs=[], outputs=[tab_index])
         tab_batch_dir.select(fn=lambda: 1, inputs=[], outputs=[tab_index])
 
-        return [tab_index,upload_files,front_tags,back_tags,remove_tags,input_dir,output_dir,options]
+        return [tab_index,upload_files,front_tags,back_tags,remove_tags,input_dir,output_dir,filename_format,options]
 
     # Files are open as images and the png info is set to the processed class for each iterated process
-    def run(self,p,tab_index,upload_files,front_tags,back_tags,remove_tags,input_dir,output_dir,options):
+    def run(self,p,tab_index,upload_files,front_tags,back_tags,remove_tags,input_dir,output_dir,filename_format,options):
 
         image_batch = []
 
@@ -230,8 +232,19 @@ class Script(scripts.Script):
 
             # Modified directory to save generated images in cache
             if tab_index == 1 and output_dir != '':
+                match filename_format:
+                    case "Exact same filename as Input file":
+                        basename = ""
+                        forced_filename = parsed_text["filename"]
+                    case "Same filename as Input file but with extrat digits":
+                        basename = parsed_text["filename"]
+                        forced_filename = None
+                    case "Standard - Simple digits":
+                        basename = ""
+                        forced_filename = None
+                
                 for n, processed_image in enumerate(proc.images):
-                    images.save_image(image=processed_image, path=output_dir, basename='', existing_info=processed_image.info)
+                    images.save_image(image=processed_image, path=output_dir, basename=basename, forced_filename=forced_filename, existing_info=processed_image.info)
 
             images_list += proc.images
             all_prompts += proc.all_prompts
