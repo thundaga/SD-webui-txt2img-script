@@ -244,7 +244,7 @@ class Script(scripts.Script):
                         forced_filename = None
                 
                 for n, processed_image in enumerate(proc.images):
-                    images.save_image(image=processed_image, path=output_dir, basename=basename, forced_filename=forced_filename, existing_info=processed_image.info)
+                    images.save_image(image=processed_image, path=output_dir, extension=shared.opts.samples_format, basename=basename, forced_filename=forced_filename, existing_info=processed_image.info)
 
             images_list += proc.images
             all_prompts += proc.all_prompts
