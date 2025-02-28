@@ -10,7 +10,7 @@ from modules.processing import process_images, Processed
 from modules.shared import state
 import modules.shared as shared
 from modules.shared import opts
-from modules.generation_parameters_copypaste import parse_generation_parameters
+from modules.infotext_utils import parse_generation_parameters
 from modules.extras import run_pnginfo
 
 # github repository -> https://github.com/thundaga/SD-webui-txt2img-script
@@ -29,7 +29,7 @@ def hires_resize(p, parsed_text: dict):
     # Uses the default value (skip the reset part)
     if not ('Hires upscale' in parsed_text or parsed_text['Hires resize-1'] != 0 or parsed_text['Hires resize-2'] != 0):
         return p
-
+    
     # Reset hr_settings to avoid wrong settings
     p.hr_scale = None
     p.hr_resize_x = int(0)
@@ -56,9 +56,12 @@ def width_height(p, parsed_text: dict):
         p.height = int(parsed_text['Size-2'])
     return p
 
-def prompt_modifications(parsed_text: dict, front_tags: str, back_tags: str, remove_tags: str) -> str:
+def prompt_modifications(parsed_text: dict, front_tags: str, back_tags: str, remove_tags: str, tag_limit: bool) -> str:
     prompt = parsed_text['Prompt']
+    tag_count = 0
 
+    if tag_limit:
+        tag_count = 1
     if remove_tags:
         remove_tags = remove_tags.strip("\n")
         tags = [x.strip() for x in remove_tags.split(',')]
@@ -67,18 +70,22 @@ def prompt_modifications(parsed_text: dict, front_tags: str, back_tags: str, rem
         text = prompt
 
         for tag in tags:
-            text = re.sub("\(\(" + tag + "\)\)|\(" + tag + ":.*?\)|<" + tag + ":.*?>|<" + tag + ">", "", text)
-            text = re.sub(r'\([^\(]*(%s)\S*\)' % tag, '', text)
-            text = re.sub(r'\[[^\[]*(%s)\S*\]' % tag, '', text)
-            text = re.sub(r'<[^<]*(%s)\S*>' % tag, '', text)
-            text = re.sub(r'\b' + tag + r'\b', '', text)
+            # added to remove lora tags
+            text = re.sub(r"<" + re.escape(re.sub(r"[<>]", '', tag)) + ">", '', text, count=tag_count)
+            text = re.sub("\(\(" + tag + "\)\)|\(" + tag + ":.*?\)|<" + tag + ":.*?>|<" + tag + ">", "", text, count=tag_count)
+            text = re.sub(r'\([^\(]*(%s)\S*\)' % tag, '', text, count=tag_count)
+            text = re.sub(r'\[[^\[]*(%s)\S*\]' % tag, '', text, count=tag_count)
+            text = re.sub(r'<[^<]*(%s)\S*>' % tag, '', text, count=tag_count)
+            text = re.sub(r'\b' + tag + r'\b', '', text, count=tag_count)
 
         # remove consecutive comma patterns with a coma and space
         pattern = re.compile(r'(,\s){2,}')
         text = re.sub(pattern, ', ', text)
 
-        # remove final comma at start of prompt
-        text = text.replace(", ", "", 1)
+        # remove any starting/ending newlines/spaces and replace comma not preceded by the first word split
+        text = text.strip("\n")
+        if text.split(',')[0] == '':
+            text = text.replace(",", '', 1)
         prompt = text
 
     if front_tags:
@@ -144,6 +151,8 @@ class Script(scripts.Script):
     def ui(self, is_img2img):
 
         tab_index = gr.State(value=0)
+        filename_format_choices = ["Exact same filename as Input file", "Same filename as Input file but with extrat digits", "Standard - Simple digits"]
+        filename_format_info = "The \"Exact same filename\" option might crash or overwrite file(s) if there are multiple files with the same name in the input directory"
 
         with gr.Row().style(equal_height=False, variant='compact'):
             with gr.Column(variant='compact'):
@@ -154,23 +163,24 @@ class Script(scripts.Script):
                     with gr.TabItem('Batch from Directory', elem_id="extras_batch_directory_tab") as tab_batch_dir:
                         input_dir = gr.Textbox(label="Input directory", **shared.hide_dirs, placeholder="Add input folder path", elem_id="files_batch_input_dir")
                         output_dir = gr.Textbox(label="Output directory", **shared.hide_dirs, placeholder="Add output folder path or Leave blank to use default path.", elem_id="files_batch_output_dir")
-                        filename_format = gr.Dropdown(label="Output filename format", choices=["Exact same filename as Input file", "Same filename as Input file but with extrat digits", "Standard - Simple digits"], value="Standard - Simple digits", info="The \"Exact same filename\" option might crash or overwrite file(s) if there are multiple files with the same name in the input directory", interactive=True, elem_id="files_batch_filename_type")
-
+                        filename_format = gr.Dropdown(label="Output filename format", choices=filename_format_choices, value="Standard - Simple digits", info=filename_format_info, interactive=True, elem_id="files_batch_filename_type")
+                
                 # CheckboxGroup with all parameters assignable from the input image (output is a list with the Name of the Checkbox checked ex: ["Checkpoint", "Prompt"]) 
                 options = gr.Dropdown(list(prompt_options.keys()), label="Assign from input image", info="Select are assigned from the input, the rest from UI", multiselect = True)
 
                 gr.HTML("<p style=\"margin-bottom:0.75em\">Optional tags to remove or add in front/end of a positive prompt on all images</p>")
+                tag_limit = gr.Checkbox(False, label="Limit to one occurence of tags to remove")
+                remove_tags = gr.Textbox(label="Tags to remove")
                 front_tags = gr.Textbox(label="Tags to add at the front")
                 back_tags = gr.Textbox(label="Tags to add at the end")
-                remove_tags = gr.Textbox(label="Tags to remove")
 
         tab_batch.select(fn=lambda: 0, inputs=[], outputs=[tab_index])
         tab_batch_dir.select(fn=lambda: 1, inputs=[], outputs=[tab_index])
 
-        return [tab_index,upload_files,front_tags,back_tags,remove_tags,input_dir,output_dir,filename_format,options]
+        return [tab_index,upload_files,front_tags,back_tags,remove_tags,tag_limit,input_dir,output_dir,filename_format,options]
 
     # Files are open as images and the png info is set to the processed class for each iterated process
-    def run(self,p,tab_index,upload_files,front_tags,back_tags,remove_tags,input_dir,output_dir,filename_format,options):
+    def run(self,p,tab_index,upload_files,front_tags,back_tags,remove_tags,tag_limit,input_dir,output_dir,filename_format,options):
 
         image_batch = []
 
@@ -205,7 +215,7 @@ class Script(scripts.Script):
                 match option:
                     case "Prompt":
                         if option in options and  tuple[metadata] in parsed_text:
-                            setattr(p, tuple[p_property], tuple[func](parsed_text,front_tags,back_tags,remove_tags))
+                            setattr(p, tuple[p_property], tuple[func](parsed_text,front_tags,back_tags,remove_tags, tag_limit))
                     case "Width and Height":
                         if option in options:
                             p = tuple[func](p, parsed_text)
@@ -229,6 +239,10 @@ class Script(scripts.Script):
 
             # Reset extra_generation_params as it stores the Hires resize and scale (Avoid having wrong info in the infotext)
             p.extra_generation_params = {}
+
+            # reset seed value
+            p.seed = None
+            p.subseed = None
 
             # Modified directory to save generated images in cache
             if tab_index == 1 and output_dir != '':
